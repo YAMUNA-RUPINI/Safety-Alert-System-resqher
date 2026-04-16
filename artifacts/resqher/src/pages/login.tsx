@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginPage() {
   const { t } = useTranslation();
-  const [, setLocation] = useLocation();
   const { signInWithGoogle, signInWithEmail, registerWithEmail, error } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -16,7 +14,6 @@ export default function LoginPage() {
     setLoading(true);
     await signInWithGoogle();
     setLoading(false);
-    setLocation("/dashboard");
   };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -28,7 +25,6 @@ export default function LoginPage() {
       await registerWithEmail(email, password);
     }
     setLoading(false);
-    if (!error) setLocation("/dashboard");
   };
 
   return (
@@ -69,7 +65,7 @@ export default function LoginPage() {
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
             </svg>
-            {t("signInWithGoogle")}
+            {loading ? "Redirecting..." : t("signInWithGoogle")}
           </button>
 
           <div className="relative">
@@ -119,7 +115,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full bg-[#9b1d3a] hover:bg-[#c0254a] text-white font-bold py-3 px-4 rounded-xl transition-all duration-200 disabled:opacity-60"
             >
-              {loading ? "..." : mode === "login" ? t("login") : t("createAccount")}
+              {loading ? "Please wait..." : mode === "login" ? t("login") : t("createAccount")}
             </button>
           </form>
 

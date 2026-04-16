@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import {
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -15,6 +16,8 @@ export function useAuth() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    getRedirectResult(auth).catch(() => {});
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
@@ -25,27 +28,31 @@ export function useAuth() {
   const signInWithGoogle = async () => {
     setError(null);
     try {
-      await signInWithPopup(auth, googleProvider);
+      await signInWithRedirect(auth, googleProvider);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-in failed");
     }
   };
 
-  const signInWithEmail = async (email: string, password: string) => {
+  const signInWithEmail = async (email: string, password: string): Promise<boolean> => {
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
+      return false;
     }
   };
 
-  const registerWithEmail = async (email: string, password: string) => {
+  const registerWithEmail = async (email: string, password: string): Promise<boolean> => {
     setError(null);
     try {
       await createUserWithEmailAndPassword(auth, email, password);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
+      return false;
     }
   };
 

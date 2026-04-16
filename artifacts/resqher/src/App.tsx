@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { onAuthStateChanged, getRedirectResult, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import "@/lib/i18n";
 import LoginPage from "@/pages/login";
@@ -17,7 +17,12 @@ function AuthGate() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    // Handle Google redirect result on page load
+    getRedirectResult(auth).catch(() => {});
+
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
     return unsub;
   }, []);
 
