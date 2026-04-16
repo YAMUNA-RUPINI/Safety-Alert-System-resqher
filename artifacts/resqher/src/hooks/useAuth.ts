@@ -29,7 +29,9 @@ export function useAuth() {
       return true;
     } catch (err) {
       const code = (err as { code?: string })?.code;
-      if (code === "auth/configuration-not-found") {
+      if (code === "auth/unauthorized-domain") {
+        setError(`This domain is not authorized in Firebase. Go to Firebase Console → Authentication → Settings → Authorized domains and add: ${window.location.hostname}`);
+      } else if (code === "auth/configuration-not-found") {
         setError("Google sign-in is not enabled. Please enable it in Firebase Console → Authentication → Sign-in method → Google.");
       } else if (code === "auth/popup-blocked") {
         setError("Popup was blocked by your browser. Please allow popups for this site and try again.");
