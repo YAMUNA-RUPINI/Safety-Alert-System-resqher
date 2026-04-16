@@ -34,8 +34,10 @@ function AuthGate() {
   }, []);
 
   useEffect(() => {
-    const onStorage = () => {
-      setActivated(localStorage.getItem("resqher-activated") === "true");
+    const onStorage = (e?: StorageEvent) => {
+      if (!e || e.key === "resqher-activated" || e.key === null) {
+        setActivated(localStorage.getItem("resqher-activated") === "true");
+      }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
