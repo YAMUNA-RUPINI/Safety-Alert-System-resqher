@@ -6,6 +6,7 @@ import { useSendAlert } from "@workspace/api-client-react";
 
 const EMERGENCY_PHONE = "+916384215014";
 const RECORD_DURATION_MS = 30000;
+const SMS_TIMEOUT_MS = 12000;
 
 interface EmergencyResult {
   locationLink: string;
@@ -21,32 +22,32 @@ interface UseEmergencyReturn {
 
 function getLocation(): Promise<string> {
   return new Promise((resolve) => {
-    if (!navigator.geolocation) {
-      resolve("https://maps.google.com/");
-      return;
-    }
+    if (!navigator.geolocation) { resolve("https://maps.google.com/"); return; }
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        resolve(`https://maps.google.com/?q=${latitude},${longitude}`);
-      },
+      (pos) => resolve(`https://maps.google.com/?q=${pos.coords.latitude},${pos.coords.longitude}`),
       () => resolve("https://maps.google.com/"),
-      { timeout: 10000 }
+      { timeout: 8000 }
     );
   });
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
+}
+
 function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => {
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, 1000);
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
+  } catch { /* ignore */ }
 }
 
 function recordCamera(
@@ -54,58 +55,58 @@ function recordCamera(
   durationMs: number
 ): Promise<{ blob: Blob; filename: string } | null> {
   return new Promise((resolve) => {
+    const label = facingMode === "user" ? "front" : "back";
+    const filename = `${label}_${Date.now()}.webm`;
+
     navigator.mediaDevices
       .getUserMedia({ video: { facingMode }, audio: true })
       .then((stream) => {
         const chunks: BlobPart[] = [];
         const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
           ? "video/webm;codecs=vp9"
-          : "video/webm";
-        const recorder = new MediaRecorder(stream, { mimeType });
-        const label = facingMode === "user" ? "front" : "back";
-        const filename = `${label}_${Date.now()}.webm`;
+          : MediaRecorder.isTypeSupported("video/webm")
+          ? "video/webm"
+          : "";
 
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunks.push(e.data);
-        };
+        let recorder: MediaRecorder;
+        try {
+          recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        } catch {
+          recorder = new MediaRecorder(stream);
+        }
 
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
         recorder.onstop = () => {
           stream.getTracks().forEach((t) => t.stop());
+          if (chunks.length === 0) { resolve(null); return; }
           const blob = new Blob(chunks, { type: "video/webm" });
           resolve({ blob, filename });
         };
-
-        recorder.onerror = () => {
-          stream.getTracks().forEach((t) => t.stop());
-          resolve(null);
-        };
+        recorder.onerror = () => { stream.getTracks().forEach((t) => t.stop()); resolve(null); };
 
         recorder.start(1000);
-        setTimeout(() => {
-          if (recorder.state !== "inactive") recorder.stop();
-        }, durationMs);
+        setTimeout(() => { if (recorder.state !== "inactive") recorder.stop(); }, durationMs);
       })
-      .catch(() => resolve(null));
+      .catch((err) => {
+        console.error(`Camera (${label}) error:`, err.name, err.message);
+        resolve(null);
+      });
   });
 }
 
-async function saveVideo(result: { blob: Blob; filename: string }): Promise<string | null> {
+async function saveAndDownloadVideo(result: { blob: Blob; filename: string }): Promise<string | null> {
+  // Auto-download to device
+  downloadBlob(result.blob, result.filename);
+
   // Save to IndexedDB for Evidence page
-  let idbPath: string | null = null;
   try {
-    idbPath = await saveVideoToIndexedDB(result.filename, result.blob);
-  } catch {
-    // IndexedDB failed
+    const path = await saveVideoToIndexedDB(result.filename, result.blob);
+    console.log("Video saved to IndexedDB:", path);
+    return path;
+  } catch (err) {
+    console.error("IndexedDB save failed:", err);
+    return null;
   }
-
-  // Also auto-download to device local storage
-  try {
-    downloadBlob(result.blob, result.filename);
-  } catch {
-    // Download failed
-  }
-
-  return idbPath;
 }
 
 export function useEmergency(
@@ -119,54 +120,65 @@ export function useEmergency(
 
   const triggerEmergency = useCallback(async () => {
     if (!userId || isTriggering) return;
-
     setIsTriggering(true);
 
-    // Step 1: Get location
+    // ── Step 1: Location ──────────────────────────────────────
     setStatusMessage("getting-location");
     const locationLink = await getLocation();
     const timestamp = new Date().toISOString();
+    console.log("Emergency triggered:", { locationLink, timestamp });
 
-    // Step 2: Write initial record to Firebase
+    // ── Step 2: Write initial Firebase record ─────────────────
     const emergencyRef = ref(database, `emergencies/${userId}`);
     let firebaseKey: string | null = null;
     try {
-      const newRef = await push(emergencyRef, {
-        userId,
-        timestamp,
-        locationLink,
-        status: "emergency_triggered",
-        frontVideoLocalPath: null,
-        backVideoLocalPath: null,
-        createdAt: timestamp,
-      });
+      const newRef = await withTimeout(
+        push(emergencyRef, {
+          userId,
+          timestamp,
+          locationLink,
+          status: "emergency_triggered",
+          frontVideoLocalPath: null,
+          backVideoLocalPath: null,
+          createdAt: timestamp,
+        }),
+        8000
+      );
       firebaseKey = newRef.key;
-    } catch {
-      // Continue even if Firebase write fails
+      console.log("Firebase record created:", firebaseKey);
+    } catch (err) {
+      console.error("Firebase write failed:", err);
     }
 
-    // Step 3: Send SMS alert
+    // ── Step 3: Send SMS (with timeout — don't block on failure) ─
     setStatusMessage("sending-alert");
     try {
-      await sendAlert.mutateAsync({
-        data: {
-          userId,
-          locationLink,
-          timestamp,
-          recipientPhone: EMERGENCY_PHONE,
-          userName: userName ?? null,
-        },
-      });
+      const result = await withTimeout(
+        sendAlert.mutateAsync({
+          data: {
+            userId,
+            locationLink,
+            timestamp,
+            recipientPhone: EMERGENCY_PHONE,
+            userName: userName ?? null,
+          },
+        }),
+        SMS_TIMEOUT_MS
+      );
+      console.log("SMS API response:", result);
       setLastEmergency({ locationLink, timestamp });
       setStatusMessage("sent");
-    } catch {
+    } catch (err) {
+      console.error("SMS send error:", err);
       setStatusMessage("failed");
     }
 
     setIsTriggering(false);
 
-    // Step 4 & 5: Record front + back camera simultaneously
+    // ── Step 4: Record both cameras simultaneously (30s each) ─
     setStatusMessage("starting-camera");
+    console.log("Starting camera recordings…");
+
     const [frontResult, backResult] = await Promise.allSettled([
       recordCamera("user", RECORD_DURATION_MS),
       recordCamera("environment", RECORD_DURATION_MS),
@@ -175,24 +187,34 @@ export function useEmergency(
     const frontData = frontResult.status === "fulfilled" ? frontResult.value : null;
     const backData = backResult.status === "fulfilled" ? backResult.value : null;
 
-    // Step 6: Save both to IndexedDB + trigger device download
+    console.log("Recording done — front:", !!frontData, "back:", !!backData);
+
+    // ── Step 5: Save to IndexedDB + auto-download ─────────────
     let frontPath: string | null = null;
     let backPath: string | null = null;
 
-    if (frontData) frontPath = await saveVideo(frontData);
-    if (backData) backPath = await saveVideo(backData);
+    const saves = await Promise.allSettled([
+      frontData ? saveAndDownloadVideo(frontData) : Promise.resolve(null),
+      backData ? saveAndDownloadVideo(backData) : Promise.resolve(null),
+    ]);
 
-    // Step 7: Update Firebase with video references
-    if (firebaseKey && (frontPath || backPath)) {
+    frontPath = saves[0].status === "fulfilled" ? saves[0].value : null;
+    backPath = saves[1].status === "fulfilled" ? saves[1].value : null;
+
+    // ── Step 6: Update Firebase with video references ─────────
+    if (firebaseKey) {
       try {
-        const recordRef = ref(database, `emergencies/${userId}/${firebaseKey}`);
-        await update(recordRef, {
-          frontVideoLocalPath: frontPath,
-          backVideoLocalPath: backPath,
-          status: "emergency_triggered",
-        });
-      } catch {
-        // Firebase update failed
+        await withTimeout(
+          update(ref(database, `emergencies/${userId}/${firebaseKey}`), {
+            frontVideoLocalPath: frontPath,
+            backVideoLocalPath: backPath,
+            status: "emergency_triggered",
+          }),
+          8000
+        );
+        console.log("Firebase updated with video paths:", { frontPath, backPath });
+      } catch (err) {
+        console.error("Firebase video update failed:", err);
       }
     }
 
