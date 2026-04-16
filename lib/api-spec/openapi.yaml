@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: RESQHER Women Safety Emergency API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: emergency
+    description: Emergency alert operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,65 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /send-alert:
+    post:
+      operationId: sendAlert
+      tags: [emergency]
+      summary: Send emergency alert
+      description: Store emergency metadata in Firebase and send SMS via Twilio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendAlertBody"
+      responses:
+        "200":
+          description: Alert sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendAlertResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /emergencies/{userId}:
+    get:
+      operationId: getEmergencies
+      tags: [emergency]
+      summary: Get emergency history
+      description: Get all emergency alerts for a specific user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of emergency records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmergencyListResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +95,76 @@ components:
       required:
         - status
 
+    SendAlertBody:
+      type: object
+      properties:
+        userId:
+          type: string
+        locationLink:
+          type: string
+        timestamp:
+          type: string
+        recipientPhone:
+          type: string
+        userName:
+          type: ["string", "null"]
+      required:
+        - userId
+        - locationLink
+        - timestamp
+        - recipientPhone
+
+    SendAlertResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        firebaseKey:
+          type: string
+        smsSid:
+          type: ["string", "null"]
+        message:
+          type: string
+      required:
+        - success
+        - message
+
+    EmergencyRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        timestamp:
+          type: string
+        locationLink:
+          type: string
+        status:
+          type: string
+        localVideoPath:
+          type: ["string", "null"]
+      required:
+        - id
+        - userId
+        - timestamp
+        - locationLink
+        - status
+
+    EmergencyListResponse:
+      type: object
+      properties:
+        emergencies:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmergencyRecord"
+      required:
+        - emergencies
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

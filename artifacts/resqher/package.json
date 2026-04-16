@@ -73,5 +73,10 @@
     "vite": "catalog:",
     "wouter": "^3.3.5",
     "zod": "catalog:"
+  },
+  "dependencies": {
+    "firebase": "^12.12.0",
+    "i18next": "^26.0.5",
+    "react-i18next": "^17.0.3"
   }
 }
