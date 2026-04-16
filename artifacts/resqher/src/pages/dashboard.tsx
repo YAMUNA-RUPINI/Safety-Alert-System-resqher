@@ -285,14 +285,11 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <button
-          data-testid="button-trigger-emergency"
-          onClick={handleEmergency}
-          disabled={isTriggering}
-          className="w-full bg-[#9b1d3a] hover:bg-[#c0254a] active:scale-95 text-white font-black text-xl py-6 rounded-2xl transition-all duration-200 disabled:opacity-60 shadow-lg shadow-red-900/30 border-2 border-[#c0254a]/50"
-        >
-          {isTriggering ? (getStatusStep() ?? "...") : t("manualTrigger")}
-        </button>
+        {isTriggering && (
+          <div className="bg-[#16102b] border border-[#9b1d3a]/50 rounded-2xl px-6 py-4 text-center">
+            <p className="text-[#9b1d3a] font-bold animate-pulse">{getStatusStep() ?? "Processing…"}</p>
+          </div>
+        )}
 
         <div className="bg-[#16102b] rounded-2xl border border-[#2d1f4e] overflow-hidden">
           <div className="px-6 py-4 border-b border-[#2d1f4e] flex items-center justify-between">
