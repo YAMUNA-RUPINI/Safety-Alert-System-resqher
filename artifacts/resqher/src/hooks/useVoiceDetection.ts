@@ -45,6 +45,10 @@ export function useVoiceDetection({
   const onEmergencyRef = useRef(onEmergency);
   const emergencyTriggeredRef = useRef(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Keep callback ref fresh so closures always call the latest version
+  const startRecognitionRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     onEmergencyRef.current = onEmergency;
@@ -76,16 +80,26 @@ export function useVoiceDetection({
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript.toLowerCase().trim();
         if (/\balpha\b/.test(transcript)) {
+          // Pause recognition during emergency
           emergencyTriggeredRef.current = true;
           shouldListenRef.current = false;
           setIsListening(false);
           if (recognitionRef.current) {
             try { recognitionRef.current.stop(); } catch { /* ignore */ }
+            recognitionRef.current = null;
           }
+
+          // Fire emergency
           onEmergencyRef.current();
-          setTimeout(() => {
+
+          // Resume listening after 10s cooldown (well after recording starts)
+          if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
+          cooldownTimerRef.current = setTimeout(() => {
             emergencyTriggeredRef.current = false;
+            shouldListenRef.current = true;
+            startRecognitionRef.current(); // always calls latest version
           }, 10000);
+
           return;
         }
       }
@@ -93,8 +107,8 @@ export function useVoiceDetection({
 
     recognition.onend = () => {
       if (shouldListenRef.current && !emergencyTriggeredRef.current) {
-        retryTimerRef.current = setTimeout(() => startRecognition(), 300);
-      } else if (!shouldListenRef.current) {
+        retryTimerRef.current = setTimeout(() => startRecognitionRef.current(), 300);
+      } else if (!shouldListenRef.current && !emergencyTriggeredRef.current) {
         setIsListening(false);
       }
     };
@@ -107,7 +121,7 @@ export function useVoiceDetection({
       }
       if (event.error === "no-speech" || event.error === "aborted") return;
       if (shouldListenRef.current) {
-        retryTimerRef.current = setTimeout(() => startRecognition(), 1000);
+        retryTimerRef.current = setTimeout(() => startRecognitionRef.current(), 1000);
       }
     };
 
@@ -117,20 +131,26 @@ export function useVoiceDetection({
       setIsListening(true);
     } catch {
       if (shouldListenRef.current) {
-        retryTimerRef.current = setTimeout(() => startRecognition(), 1000);
+        retryTimerRef.current = setTimeout(() => startRecognitionRef.current(), 1000);
       }
     }
   }, [SpeechRecognitionAPI]);
 
+  // Keep ref in sync with the latest callback
+  useEffect(() => {
+    startRecognitionRef.current = startRecognition;
+  }, [startRecognition]);
+
   const startListening = useCallback(() => {
     if (!isSupported) return;
     shouldListenRef.current = true;
-    startRecognition();
-  }, [isSupported, startRecognition]);
+    startRecognitionRef.current();
+  }, [isSupported]);
 
   const stopListening = useCallback(() => {
     shouldListenRef.current = false;
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
     if (recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch { /* ignore */ }
       recognitionRef.current = null;
@@ -140,16 +160,18 @@ export function useVoiceDetection({
 
   useEffect(() => {
     if (enabled && isSupported) {
-      startListening();
+      shouldListenRef.current = true;
+      startRecognitionRef.current();
     }
     return () => {
       shouldListenRef.current = false;
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch { /* ignore */ }
       }
     };
-  }, [enabled, isSupported, startListening]);
+  }, [enabled, isSupported]);
 
   return { isListening, isSupported, startListening, stopListening };
 }
