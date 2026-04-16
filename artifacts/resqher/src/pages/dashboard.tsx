@@ -12,7 +12,6 @@ export default function DashboardPage() {
   const [, setLocation] = useLocation();
   const { user, signOut } = useAuth();
   const [showEmergencyOverlay, setShowEmergencyOverlay] = useState(false);
-  const [noContactWarning, setNoContactWarning] = useState(false);
 
   const { triggerEmergency, isTriggering, statusMessage } = useEmergency(
     user?.uid,
@@ -22,12 +21,6 @@ export default function DashboardPage() {
   const { emergencies, loading: historyLoading } = useEmergencyHistory(user?.uid);
 
   const handleEmergency = useCallback(async () => {
-    const contact = localStorage.getItem("emergencyContact");
-    if (!contact) {
-      setNoContactWarning(true);
-      setTimeout(() => setNoContactWarning(false), 4000);
-      return;
-    }
     setShowEmergencyOverlay(true);
     await triggerEmergency();
   }, [triggerEmergency]);
@@ -38,6 +31,7 @@ export default function DashboardPage() {
   });
 
   const handleSignOut = async () => {
+    localStorage.removeItem("resqher-activated");
     await signOut();
     setLocation("/");
   };
@@ -55,7 +49,6 @@ export default function DashboardPage() {
       case "sending-alert": return t("sendingAlert");
       case "sent": return t("alertSent");
       case "failed": return t("alertFailed");
-      case "no-contact": return t("pleaseEnterContact");
       default: return null;
     }
   };
@@ -99,6 +92,13 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            data-testid="button-evidence"
+            onClick={() => setLocation("/evidence")}
+            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-[#2d1f4e] hover:bg-[#3d2a66] text-[#a78bca] transition-colors"
+          >
+            {t("viewEvidence")}
+          </button>
           <button
             data-testid="button-language-toggle"
             onClick={toggleLanguage}
@@ -154,7 +154,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-[#16102b] rounded-2xl p-6 border border-[#2d1f4e]">
+        <div className={`rounded-2xl p-5 border-2 ${isListening ? "bg-green-950/40 border-green-700" : "bg-[#16102b] border-[#2d1f4e]"} transition-all duration-300`}>
           <div className="flex items-center gap-4">
             <div className={`relative flex-shrink-0 ${isListening ? "animate-pulse" : ""}`}>
               <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
@@ -169,7 +169,7 @@ export default function DashboardPage() {
               )}
             </div>
             <div className="flex-1">
-              <p data-testid="status-voice" className={`font-semibold ${isListening ? "text-green-400" : "text-gray-500"}`}>
+              <p data-testid="status-voice" className={`font-bold text-base ${isListening ? "text-green-400" : "text-gray-500"}`}>
                 {!isSupported
                   ? t("voiceNotSupported")
                   : isListening
@@ -182,14 +182,19 @@ export default function DashboardPage() {
                 </p>
               )}
             </div>
+            {isListening && (
+              <div className="flex gap-0.5">
+                {[...Array(4)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="w-1 bg-green-400 rounded-full animate-bounce"
+                    style={{ height: `${12 + i * 6}px`, animationDelay: `${i * 0.1}s` }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
-
-        {noContactWarning && (
-          <div className="bg-yellow-900/40 border border-yellow-700 rounded-xl px-4 py-3 text-yellow-300 text-sm">
-            {t("pleaseEnterContact")}
-          </div>
-        )}
 
         <button
           data-testid="button-trigger-emergency"
@@ -201,8 +206,14 @@ export default function DashboardPage() {
         </button>
 
         <div className="bg-[#16102b] rounded-2xl border border-[#2d1f4e] overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#2d1f4e]">
+          <div className="px-6 py-4 border-b border-[#2d1f4e] flex items-center justify-between">
             <h3 className="font-bold text-white">{t("emergencyHistory")}</h3>
+            <button
+              onClick={() => setLocation("/evidence")}
+              className="text-xs text-[#a78bca] hover:text-white transition-colors"
+            >
+              {t("viewEvidence")} →
+            </button>
           </div>
           <div className="divide-y divide-[#2d1f4e]">
             {historyLoading ? (
@@ -212,7 +223,7 @@ export default function DashboardPage() {
                 {t("noHistory")}
               </div>
             ) : (
-              emergencies.map((item) => (
+              emergencies.slice(0, 5).map((item) => (
                 <div
                   data-testid={`card-emergency-${item.id}`}
                   key={item.id}

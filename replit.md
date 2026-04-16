@@ -49,8 +49,27 @@ pnpm workspace monorepo using TypeScript. Contains the RESQHER AI Women Safety E
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 - `pnpm --filter @workspace/resqher run dev` — run frontend locally
 
+## App Flow
+Login → Security Activation Screen → Dashboard → Voice Listening → "alpha" detected → Emergency Trigger → SMS + Location + Recording → Save Evidence → Show in Evidence Page
+
+## Security Activation Screen
+- Shown after login, before dashboard (only once per session)
+- Displays keyword: ALPHA (read-only)
+- User clicks "Activate Protection" to proceed
+- Activation state stored in `localStorage` under key `"resqher-activated"`
+
 ## Emergency Contact
-The recipient phone number is stored in the user's `localStorage` under key `"emergencyContact"`.
-Users set this in the Settings page. This number receives the Twilio SMS on emergency.
+The recipient phone number is hardcoded to `+916384215014` in `useEmergency.ts`.
+This number receives the Twilio SMS on every emergency trigger.
+
+## Camera Recording
+- Records front camera for 30 seconds, then back camera for 30 seconds
+- Videos are saved directly to the user's local device via browser download
+- No video files are uploaded to Firebase — only metadata is stored
+
+## Evidence Page (`/evidence`)
+- Lists all past emergency events from Firebase
+- Each entry shows: timestamp, location link, video download buttons
+- Video download links point to local blob URLs generated during recording
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.

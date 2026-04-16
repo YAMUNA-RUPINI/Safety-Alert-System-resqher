@@ -7,20 +7,38 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import "@/lib/i18n";
 import LoginPage from "@/pages/login";
+import ActivationPage from "@/pages/activation";
 import DashboardPage from "@/pages/dashboard";
 import SettingsPage from "@/pages/settings";
+import EvidencePage from "@/pages/evidence";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
 
 function AuthGate() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [activated, setActivated] = useState<boolean>(() =>
+    localStorage.getItem("resqher-activated") === "true"
+  );
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
+      if (!u) {
+        setActivated(false);
+      } else {
+        setActivated(localStorage.getItem("resqher-activated") === "true");
+      }
     });
     return unsub;
+  }, []);
+
+  useEffect(() => {
+    const onStorage = () => {
+      setActivated(localStorage.getItem("resqher-activated") === "true");
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   if (user === undefined) {
@@ -34,13 +52,19 @@ function AuthGate() {
   return (
     <Switch>
       <Route path="/">
-        {user ? <Redirect to="/dashboard" /> : <LoginPage />}
+        {user ? <Redirect to={activated ? "/dashboard" : "/activation"} /> : <LoginPage />}
+      </Route>
+      <Route path="/activation">
+        {!user ? <Redirect to="/" /> : activated ? <Redirect to="/dashboard" /> : <ActivationPage />}
       </Route>
       <Route path="/dashboard">
-        {user ? <DashboardPage /> : <Redirect to="/" />}
+        {!user ? <Redirect to="/" /> : !activated ? <Redirect to="/activation" /> : <DashboardPage />}
       </Route>
       <Route path="/settings">
-        {user ? <SettingsPage /> : <Redirect to="/" />}
+        {!user ? <Redirect to="/" /> : !activated ? <Redirect to="/activation" /> : <SettingsPage />}
+      </Route>
+      <Route path="/evidence">
+        {!user ? <Redirect to="/" /> : !activated ? <Redirect to="/activation" /> : <EvidencePage />}
       </Route>
       <Route component={NotFound} />
     </Switch>
