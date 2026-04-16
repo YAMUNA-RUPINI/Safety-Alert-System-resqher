@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import {
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -16,8 +15,6 @@ export function useAuth() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getRedirectResult(auth).catch(() => {});
-
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
@@ -25,12 +22,21 @@ export function useAuth() {
     return unsubscribe;
   }, []);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (): Promise<boolean> => {
     setError(null);
     try {
-      await signInWithRedirect(auth, googleProvider);
+      await signInWithPopup(auth, googleProvider);
+      return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Google sign-in failed");
+      const code = (err as { code?: string })?.code;
+      if (code === "auth/configuration-not-found") {
+        setError("Google sign-in is not enabled. Please enable it in Firebase Console → Authentication → Sign-in method → Google.");
+      } else if (code === "auth/popup-blocked") {
+        setError("Popup was blocked by your browser. Please allow popups for this site and try again.");
+      } else {
+        setError(err instanceof Error ? err.message : "Google sign-in failed");
+      }
+      return false;
     }
   };
 
@@ -40,7 +46,14 @@ export function useAuth() {
       await signInWithEmailAndPassword(auth, email, password);
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed");
+      const code = (err as { code?: string })?.code;
+      if (code === "auth/configuration-not-found" || code === "auth/operation-not-allowed") {
+        setError("Email/Password sign-in is not enabled. Please enable it in Firebase Console → Authentication → Sign-in method → Email/Password.");
+      } else if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
+        setError("Invalid email or password. Please check your credentials.");
+      } else {
+        setError(err instanceof Error ? err.message : "Sign-in failed");
+      }
       return false;
     }
   };
@@ -51,7 +64,16 @@ export function useAuth() {
       await createUserWithEmailAndPassword(auth, email, password);
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      const code = (err as { code?: string })?.code;
+      if (code === "auth/configuration-not-found" || code === "auth/operation-not-allowed") {
+        setError("Email/Password sign-in is not enabled. Please enable it in Firebase Console → Authentication → Sign-in method → Email/Password.");
+      } else if (code === "auth/email-already-in-use") {
+        setError("An account with this email already exists. Try logging in instead.");
+      } else if (code === "auth/weak-password") {
+        setError("Password must be at least 6 characters.");
+      } else {
+        setError(err instanceof Error ? err.message : "Registration failed");
+      }
       return false;
     }
   };
