@@ -1,0 +1,68 @@
+Update the existing Women Safety App with the following enhancements:
+
+1. AFTER GOOGLE LOGIN FLOW CHANGE
+- Do NOT directly open dashboard after login.
+- Add a new intermediate screen called “Security Activation Screen”.
+
+2. SECURITY ACTIVATION SCREEN
+- Show message:
+  “To activate protection, confirm keyword setup: ALPHA”
+- Display keyword: ALPHA (read-only)
+- Add button: “Activate Protection”
+- After clicking, store activation status and proceed to dashboard.
+
+3. DASHBOARD UPDATE
+- Add status indicator:
+  “Listening for ALPHA keyword…”
+- Start voice detection only AFTER activation screen is completed.
+
+4. VOICE DETECTION UPDATE
+- Detect only the keyword: “alpha”
+- Must run continuously in dashboard
+- On detection → trigger emergency flow immediately (no confirmation)
+
+5. EMERGENCY ACTION UPDATE
+On detection of “alpha”:
+
+- Capture live GPS location and convert to Google Maps link
+- Send SMS via Twilio to: +916384215014
+- SMS must include:
+  - Alert message
+  - Location link
+  - Timestamp
+
+6. CAMERA RECORDING UPDATE
+- Immediately start recording:
+  - Front camera for 30 seconds
+  - Back camera for 30 seconds (if available)
+- Save videos ONLY in local device storage
+- DO NOT upload videos to Firebase Storage
+
+7. FIREBASE UPDATE
+- Store ONLY metadata:
+  - userId
+  - timestamp
+  - location link
+  - local video file paths
+  - emergency status
+- No video files in Firebase
+
+8. EVIDENCE PAGE ADDITION
+- Create a new page called “Evidence Page”
+- Show list of emergency events
+- Each entry includes:
+  - Timestamp
+  - Location link
+  - Download option for local videos
+- Videos are accessed only from local storage paths
+
+9. LANGUAGE UPDATE
+- Support ONLY:
+  - English
+  - Tamil
+- Remove any other languages completely
+
+10. FINAL BEHAVIOR CHANGE
+Flow should be:
+
+Login → Security Activation Screen → Dashboard → Voice Listening → “alpha” detected → Emergency Trigger → SMS + Location + Recording → Save Evidence → Show in Evidence Page
