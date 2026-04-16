@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
@@ -7,11 +7,21 @@ import { useEmergency } from "@/hooks/useEmergency";
 import { useEmergencyHistory } from "@/hooks/useEmergencyHistory";
 import i18n from "@/lib/i18n";
 
+function isInIframe() {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
+}
+
 export default function DashboardPage() {
   const { t } = useTranslation();
   const [, setLocation] = useLocation();
   const { user, signOut } = useAuth();
   const [showEmergencyOverlay, setShowEmergencyOverlay] = useState(false);
+  const [inIframe] = useState(() => isInIframe());
+  const [micPermission, setMicPermission] = useState<"unknown" | "granted" | "denied">("unknown");
 
   const { triggerEmergency, isTriggering, statusMessage } = useEmergency(
     user?.uid,
@@ -27,8 +37,18 @@ export default function DashboardPage() {
 
   const { isListening, isSupported } = useVoiceDetection({
     onEmergency: handleEmergency,
-    enabled: !!user,
+    enabled: !!user && !inIframe,
   });
+
+  useEffect(() => {
+    if (inIframe) return;
+    navigator.permissions?.query({ name: "microphone" as PermissionName }).then((result) => {
+      setMicPermission(result.state === "granted" ? "granted" : result.state === "denied" ? "denied" : "unknown");
+      result.onchange = () => {
+        setMicPermission(result.state === "granted" ? "granted" : result.state === "denied" ? "denied" : "unknown");
+      };
+    }).catch(() => setMicPermission("unknown"));
+  }, [inIframe]);
 
   const handleSignOut = async () => {
     localStorage.removeItem("resqher-activated");
@@ -40,6 +60,10 @@ export default function DashboardPage() {
     const newLang = i18n.language === "en" ? "ta" : "en";
     i18n.changeLanguage(newLang);
     localStorage.setItem("resqher-lang", newLang);
+  };
+
+  const openInNewTab = () => {
+    window.open(window.location.href, "_blank");
   };
 
   const getStatusStep = () => {
@@ -78,6 +102,27 @@ export default function DashboardPage() {
               {t("dismiss")}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Iframe warning banner */}
+      {inIframe && (
+        <div className="bg-amber-900/80 border-b border-amber-600 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-amber-200 text-sm">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 flex-shrink-0 text-amber-400">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            <span>Voice & camera require the app to be opened in a full browser tab.</span>
+          </div>
+          <button
+            onClick={openInNewTab}
+            className="flex-shrink-0 flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-black text-xs font-black px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+              <path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+            </svg>
+            Open in New Tab
+          </button>
         </div>
       )}
 
@@ -154,47 +199,91 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className={`rounded-2xl p-5 border-2 ${isListening ? "bg-green-950/40 border-green-700" : "bg-[#16102b] border-[#2d1f4e]"} transition-all duration-300`}>
-          <div className="flex items-center gap-4">
-            <div className={`relative flex-shrink-0 ${isListening ? "animate-pulse" : ""}`}>
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                isListening ? "bg-green-500/20 border-2 border-green-500" : "bg-gray-700/20 border-2 border-gray-600"
-              }`}>
-                <svg viewBox="0 0 24 24" fill="currentColor" className={`w-6 h-6 ${isListening ? "text-green-400" : "text-gray-500"}`}>
-                  <path d="M12 15c1.66 0 2.99-1.34 2.99-3L15 6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 15 6.7 12H5c0 3.42 2.72 6.23 6 6.72V21h2v-2.28c3.28-.49 6-3.3 6-6.72h-1.7z"/>
+        {/* Voice status — disabled in iframe */}
+        {inIframe ? (
+          <div className="rounded-2xl p-5 border-2 bg-[#16102b] border-[#2d1f4e]">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center bg-amber-900/30 border-2 border-amber-700 flex-shrink-0">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-amber-500">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
                 </svg>
               </div>
-              {isListening && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping" />
-              )}
-            </div>
-            <div className="flex-1">
-              <p data-testid="status-voice" className={`font-bold text-base ${isListening ? "text-green-400" : "text-gray-500"}`}>
-                {!isSupported
-                  ? t("voiceNotSupported")
-                  : isListening
-                  ? t("listeningStatus")
-                  : t("notListening")}
-              </p>
-              {isSupported && (
-                <p className="text-xs text-[#6b5e8a] mt-0.5">
-                  {t("voiceDetectionActive")}
-                </p>
-              )}
-            </div>
-            {isListening && (
-              <div className="flex gap-0.5">
-                {[...Array(4)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-1 bg-green-400 rounded-full animate-bounce"
-                    style={{ height: `${12 + i * 6}px`, animationDelay: `${i * 0.1}s` }}
-                  />
-                ))}
+              <div className="flex-1">
+                <p className="font-bold text-base text-amber-400">Voice listener blocked in preview</p>
+                <p className="text-xs text-[#6b5e8a] mt-0.5">Open app in a new tab to enable "ALPHA" voice trigger</p>
               </div>
-            )}
+              <button
+                onClick={openInNewTab}
+                className="text-xs font-bold px-3 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-white transition-colors"
+              >
+                Open →
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className={`rounded-2xl p-5 border-2 ${
+            micPermission === "denied"
+              ? "bg-red-950/30 border-red-800"
+              : isListening
+              ? "bg-green-950/40 border-green-700"
+              : "bg-[#16102b] border-[#2d1f4e]"
+          } transition-all duration-300`}>
+            <div className="flex items-center gap-4">
+              <div className={`relative flex-shrink-0 ${isListening ? "animate-pulse" : ""}`}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  micPermission === "denied"
+                    ? "bg-red-900/30 border-2 border-red-700"
+                    : isListening
+                    ? "bg-green-500/20 border-2 border-green-500"
+                    : "bg-gray-700/20 border-2 border-gray-600"
+                }`}>
+                  <svg viewBox="0 0 24 24" fill="currentColor" className={`w-6 h-6 ${
+                    micPermission === "denied" ? "text-red-500" : isListening ? "text-green-400" : "text-gray-500"
+                  }`}>
+                    <path d="M12 15c1.66 0 2.99-1.34 2.99-3L15 6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 15 6.7 12H5c0 3.42 2.72 6.23 6 6.72V21h2v-2.28c3.28-.49 6-3.3 6-6.72h-1.7z"/>
+                  </svg>
+                </div>
+                {isListening && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping" />
+                )}
+              </div>
+              <div className="flex-1">
+                <p data-testid="status-voice" className={`font-bold text-base ${
+                  micPermission === "denied" ? "text-red-400" : isListening ? "text-green-400" : "text-gray-500"
+                }`}>
+                  {!isSupported
+                    ? t("voiceNotSupported")
+                    : micPermission === "denied"
+                    ? "Microphone blocked — voice trigger disabled"
+                    : isListening
+                    ? t("listeningStatus")
+                    : t("notListening")}
+                </p>
+                {isSupported && micPermission !== "denied" && (
+                  <p className="text-xs text-[#6b5e8a] mt-0.5">
+                    {t("voiceDetectionActive")}
+                  </p>
+                )}
+                {micPermission === "denied" && (
+                  <p className="text-xs text-red-400 mt-0.5">
+                    Allow microphone in browser settings and refresh
+                  </p>
+                )}
+              </div>
+              {isListening && (
+                <div className="flex gap-0.5">
+                  {[...Array(4)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="w-1 bg-green-400 rounded-full animate-bounce"
+                      style={{ height: `${12 + i * 6}px`, animationDelay: `${i * 0.1}s` }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <button
           data-testid="button-trigger-emergency"

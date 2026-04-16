@@ -5,6 +5,7 @@ import { saveVideoToIndexedDB } from "@/lib/indexeddb";
 import { useSendAlert } from "@workspace/api-client-react";
 
 const EMERGENCY_PHONE = "+916384215014";
+const RECORD_DURATION_MS = 30000;
 
 interface EmergencyResult {
   locationLink: string;
@@ -33,6 +34,19 @@ function getLocation(): Promise<string> {
       { timeout: 10000 }
     );
   });
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1000);
 }
 
 function recordCamera(
@@ -75,6 +89,25 @@ function recordCamera(
   });
 }
 
+async function saveVideo(result: { blob: Blob; filename: string }): Promise<string | null> {
+  // Save to IndexedDB for Evidence page
+  let idbPath: string | null = null;
+  try {
+    idbPath = await saveVideoToIndexedDB(result.filename, result.blob);
+  } catch {
+    // IndexedDB failed
+  }
+
+  // Also auto-download to device local storage
+  try {
+    downloadBlob(result.blob, result.filename);
+  } catch {
+    // Download failed
+  }
+
+  return idbPath;
+}
+
 export function useEmergency(
   userId: string | undefined,
   userName: string | null | undefined
@@ -92,11 +125,9 @@ export function useEmergency(
     // Step 1: Get location
     setStatusMessage("getting-location");
     const locationLink = await getLocation();
-
     const timestamp = new Date().toISOString();
 
     // Step 2: Write initial record to Firebase
-    setStatusMessage("sending-alert");
     const emergencyRef = ref(database, `emergencies/${userId}`);
     let firebaseKey: string | null = null;
     try {
@@ -114,7 +145,8 @@ export function useEmergency(
       // Continue even if Firebase write fails
     }
 
-    // Step 3: Send SMS
+    // Step 3: Send SMS alert
+    setStatusMessage("sending-alert");
     try {
       await sendAlert.mutateAsync({
         data: {
@@ -133,32 +165,24 @@ export function useEmergency(
 
     setIsTriggering(false);
 
-    // Step 4: Record front camera (30s) in background
+    // Step 4 & 5: Record front + back camera simultaneously
     setStatusMessage("starting-camera");
-    const frontResult = await recordCamera("user", 30000);
+    const [frontResult, backResult] = await Promise.allSettled([
+      recordCamera("user", RECORD_DURATION_MS),
+      recordCamera("environment", RECORD_DURATION_MS),
+    ]);
 
+    const frontData = frontResult.status === "fulfilled" ? frontResult.value : null;
+    const backData = backResult.status === "fulfilled" ? backResult.value : null;
+
+    // Step 6: Save both to IndexedDB + trigger device download
     let frontPath: string | null = null;
-    if (frontResult) {
-      try {
-        frontPath = await saveVideoToIndexedDB(frontResult.filename, frontResult.blob);
-      } catch {
-        // IndexedDB save failed
-      }
-    }
-
-    // Step 5: Record back camera (30s) in background
-    const backResult = await recordCamera("environment", 30000);
-
     let backPath: string | null = null;
-    if (backResult) {
-      try {
-        backPath = await saveVideoToIndexedDB(backResult.filename, backResult.blob);
-      } catch {
-        // IndexedDB save failed
-      }
-    }
 
-    // Step 6: Update Firebase with video references
+    if (frontData) frontPath = await saveVideo(frontData);
+    if (backData) backPath = await saveVideo(backData);
+
+    // Step 7: Update Firebase with video references
     if (firebaseKey && (frontPath || backPath)) {
       try {
         const recordRef = ref(database, `emergencies/${userId}/${firebaseKey}`);
