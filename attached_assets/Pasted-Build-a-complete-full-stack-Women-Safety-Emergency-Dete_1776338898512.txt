@@ -1,0 +1,171 @@
+Build a complete full-stack Women Safety Emergency Detection System.
+
+PROJECT NAME:
+RESQHER – AI Women Safety Emergency System
+
+--------------------------------------------
+TECH STACK
+--------------------------------------------
+Frontend: React.js
+Backend: Node.js + Express
+Database: Firebase Realtime Database
+Auth: Firebase Authentication (Google + Email/Password)
+SMS Service: Twilio (via backend only)
+
+--------------------------------------------
+FIREBASE CONFIG
+--------------------------------------------
+Use this Firebase Realtime Database:
+
+https://resqher-d3d5e-default-rtdb.firebaseio.com/
+
+Use Firebase ONLY for:
+- User authentication
+- Emergency logs (metadata only)
+
+DO NOT store videos in Firebase Storage.
+
+--------------------------------------------
+1. FRONTEND (REACT)
+--------------------------------------------
+
+Create a React app with:
+
+A) Login Page
+- Google Authentication using Firebase
+- Email/Password Register & Login
+- Clean UI with buttons:
+  - Login with Google
+  - Register
+  - Login
+
+B) Language System
+- Support ONLY:
+  - English
+  - Tamil
+- Use react-i18next
+- Add toggle button in dashboard
+- NO Hindi language support
+
+C) Dashboard
+- Show user profile (name, email, photo)
+- Status: "Listening for ALPHA keyword..."
+- Emergency history from Firebase
+- Language switch (EN / TA)
+
+--------------------------------------------
+2. VOICE DETECTION MODULE
+--------------------------------------------
+
+- Use Web Speech API (or SpeechRecognition API)
+- Continuously listen in background
+- Detect ONLY keyword: "alpha"
+- When detected → trigger emergency immediately
+
+--------------------------------------------
+3. EMERGENCY SYSTEM
+--------------------------------------------
+
+When "alpha" is detected:
+
+A) GPS MODULE
+- Get live location using geolocation API
+- Convert to Google Maps link
+
+B) CAMERA MODULE
+- Start recording:
+  - Front camera
+  - Back camera (if available)
+- Save video ONLY in LOCAL DEVICE STORAGE
+- DO NOT upload video to Firebase
+
+C) FIREBASE DATABASE (ONLY METADATA)
+Store:
+
+{
+  userId,
+  timestamp,
+  locationLink,
+  localVideoPath,
+  status: "triggered"
+}
+
+--------------------------------------------
+4. BACKEND (NODE.JS + EXPRESS)
+--------------------------------------------
+
+Create API:
+
+POST /send-alert
+
+This API should:
+- Receive userId, locationLink, timestamp
+- Save emergency record into Firebase Realtime Database
+- Send SMS using Twilio
+
+--------------------------------------------
+5. TWILIO SETUP (ASK USER INPUT ONLY)
+
+Ask user to provide ONLY:
+
+- Twilio Account SID
+- Twilio Auth Token
+- Twilio Phone Number
+
+Store in backend .env file:
+
+TWILIO_ACCOUNT_SID=USER_INPUT
+TWILIO_AUTH_TOKEN=USER_INPUT
+TWILIO_PHONE_NUMBER=USER_INPUT
+
+Never expose these in frontend.
+
+--------------------------------------------
+6. SMS FORMAT
+
+Send SMS:
+
+🚨 EMERGENCY ALERT 🚨
+User triggered safety system
+Location: <Google Maps Link>
+Time: <Timestamp>
+
+--------------------------------------------
+7. SYSTEM FLOW
+
+Login (Firebase Auth)
+   ↓
+Language Selection (English / Tamil)
+   ↓
+Dashboard loads
+   ↓
+Voice listener starts
+   ↓
+Detect "alpha"
+   ↓
+Trigger emergency system
+   ↓
+Get GPS location
+   ↓
+Start camera recording (local storage)
+   ↓
+Call backend API
+   ↓
+Backend:
+   → Store metadata in Firebase
+   → Send Twilio SMS
+   ↓
+Dashboard updates
+
+--------------------------------------------
+8. OUTPUT REQUIRED
+
+Generate:
+- Full React frontend code
+- Node.js backend with Express
+- Firebase authentication setup
+- Voice detection module
+- Twilio integration (secure backend only)
+- Multi-language support (English + Tamil only)
+- Clean folder structure
+- Ready-to-run project
