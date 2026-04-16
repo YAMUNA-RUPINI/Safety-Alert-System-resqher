@@ -5,14 +5,19 @@ const accountSid = process.env["TWILIO_ACCOUNT_SID"];
 const authToken = process.env["TWILIO_AUTH_TOKEN"];
 const twilioPhone = process.env["TWILIO_PHONE_NUMBER"];
 
-if (!accountSid || !authToken || !twilioPhone) {
-  logger.warn("Twilio credentials not fully configured. SMS alerts will be disabled.");
-}
-
 let client: twilio.Twilio | null = null;
 
-if (accountSid && authToken) {
-  client = twilio(accountSid, authToken);
+if (!accountSid || !authToken || !twilioPhone) {
+  logger.warn("Twilio credentials not fully configured. SMS alerts will be disabled.");
+} else if (!accountSid.startsWith("AC")) {
+  logger.warn(`TWILIO_ACCOUNT_SID must start with 'AC' (got: ${accountSid.slice(0, 4)}...). SMS disabled.`);
+} else {
+  try {
+    client = twilio(accountSid, authToken);
+    logger.info("Twilio client initialized successfully.");
+  } catch (err) {
+    logger.error({ err }, "Failed to initialize Twilio client.");
+  }
 }
 
 export interface SMSResult {
