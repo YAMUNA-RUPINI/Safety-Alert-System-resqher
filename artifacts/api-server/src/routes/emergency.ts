@@ -19,8 +19,9 @@ router.post("/send-alert", async (req, res): Promise<void> => {
     userId,
     timestamp,
     locationLink,
-    status: "triggered",
-    localVideoPath: null,
+    status: "emergency_triggered",
+    frontVideoLocalPath: null,
+    backVideoLocalPath: null,
     createdAt: new Date().toISOString(),
   };
 
@@ -35,20 +36,30 @@ router.post("/send-alert", async (req, res): Promise<void> => {
   }
 
   let smsSid: string | null = null;
+  let smsStatus: string = "not_configured";
+
   try {
-    smsSid = await sendEmergencySMS(recipientPhone, locationLink, timestamp, userName);
-    if (smsSid) {
-      req.log.info({ smsSid, recipientPhone }, "Emergency SMS sent");
+    const smsResult = await sendEmergencySMS(recipientPhone, locationLink, timestamp, userName);
+    if (smsResult) {
+      smsSid = smsResult.sid;
+      smsStatus = smsResult.status;
+      req.log.info(
+        { messageSid: smsResult.sid, status: smsResult.status, timestamp: smsResult.timestamp, recipientPhone },
+        "Emergency SMS sent"
+      );
     }
   } catch (err) {
     req.log.error({ err }, "Failed to send emergency SMS");
+    smsStatus = "failed";
   }
 
   res.json({
     success: true,
+    sid: smsSid ?? undefined,
+    status: "sent",
     firebaseKey: firebaseKey ?? undefined,
-    smsSid,
-    message: "Emergency alert processed",
+    smsStatus,
+    message: "Emergency alert sent successfully",
   });
 });
 
@@ -72,6 +83,8 @@ router.get("/emergencies/:userId", async (req, res): Promise<void> => {
       timestamp: string;
       locationLink: string;
       status: string;
+      frontVideoLocalPath?: string | null;
+      backVideoLocalPath?: string | null;
       localVideoPath?: string | null;
     }> | null;
 
@@ -82,6 +95,8 @@ router.get("/emergencies/:userId", async (req, res): Promise<void> => {
           timestamp: value.timestamp,
           locationLink: value.locationLink,
           status: value.status,
+          frontVideoLocalPath: value.frontVideoLocalPath ?? null,
+          backVideoLocalPath: value.backVideoLocalPath ?? null,
           localVideoPath: value.localVideoPath ?? null,
         }))
       : [];

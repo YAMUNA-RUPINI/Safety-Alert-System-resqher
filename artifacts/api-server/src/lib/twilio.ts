@@ -15,12 +15,18 @@ if (accountSid && authToken) {
   client = twilio(accountSid, authToken);
 }
 
+export interface SMSResult {
+  sid: string;
+  status: string;
+  timestamp: string;
+}
+
 export async function sendEmergencySMS(
   to: string,
   locationLink: string,
   timestamp: string,
   userName?: string | null
-): Promise<string | null> {
+): Promise<SMSResult | null> {
   if (!client || !twilioPhone) {
     logger.warn("Twilio not configured, skipping SMS");
     return null;
@@ -34,5 +40,16 @@ export async function sendEmergencySMS(
     to,
   });
 
-  return message.sid;
+  const result: SMSResult = {
+    sid: message.sid,
+    status: message.status,
+    timestamp: new Date().toISOString(),
+  };
+
+  logger.info(
+    { messageSid: result.sid, status: result.status, timestamp: result.timestamp, to },
+    "Emergency SMS sent successfully"
+  );
+
+  return result;
 }

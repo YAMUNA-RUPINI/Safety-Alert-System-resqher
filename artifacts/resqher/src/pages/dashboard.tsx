@@ -47,7 +47,7 @@ export default function DashboardPage() {
       case "getting-location": return t("gettingLocation");
       case "starting-camera": return t("startingCamera");
       case "sending-alert": return t("sendingAlert");
-      case "sent": return t("alertSent");
+      case "sent": return "Emergency alert sent successfully";
       case "failed": return t("alertFailed");
       default: return null;
     }

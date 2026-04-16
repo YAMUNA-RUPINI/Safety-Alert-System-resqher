@@ -1,0 +1,158 @@
+Fix and improve the existing Women Safety Emergency Detection App with the following corrections and updates:
+
+----------------------------------------------------
+1. SECURITY ACTIVATION + VOICE LISTENER FIX
+----------------------------------------------------
+
+Problem:
+After protection activation, voice recording/listening does not start properly.
+
+Fix:
+- After clicking “Activate Protection”:
+  - Immediately request microphone permission
+  - Show message: “Say ALPHA to activate emergency mode”
+  - Start voice recognition automatically without manual trigger
+- Voice listener must:
+  - Start on dashboard load
+  - Run continuously in foreground mode
+  - Not stop unless app is closed or emergency triggered
+
+Flow must be:
+Activation Screen → Microphone Permission → Voice Listener Active → Dashboard
+
+----------------------------------------------------
+2. VOICE DETECTION RELIABILITY FIX
+----------------------------------------------------
+
+- Detect ONLY keyword: “alpha”
+- Improve reliability:
+  - case-insensitive matching
+  - ignore noise words
+- On detection:
+  - Immediately stop listener temporarily
+  - Trigger emergency flow within 1–2 seconds
+
+----------------------------------------------------
+3. TWILIO SMS VERIFICATION FIX
+----------------------------------------------------
+
+Problem:
+Need confirmation SMS is actually sent.
+
+Fix:
+Backend must:
+
+- Send SMS to: +916384215014
+- Log Twilio response:
+  - messageSid
+  - status
+  - timestamp
+
+Frontend must show:
+“Emergency alert sent successfully”
+
+Backend response format:
+{
+  success: true,
+  sid: "...",
+  status: "sent"
+}
+
+----------------------------------------------------
+4. CAMERA RECORDING + LOCAL STORAGE FIX
+----------------------------------------------------
+
+Problem:
+Video is recorded but NOT visible properly in local storage.
+
+Fix:
+
+A) Recording:
+- Record:
+  - Front camera → 30 seconds
+  - Back camera → 30 seconds
+
+B) Save method:
+- Save as file:
+  front_{timestamp}.webm
+  back_{timestamp}.webm
+
+C) MUST ensure persistence:
+- Store using IndexedDB OR FileSystem API reference system
+- DO NOT rely only on blob URLs
+
+D) Required behavior:
+- Videos must remain available after page refresh
+- Videos must be retrievable from Evidence Page
+
+----------------------------------------------------
+5. FIREBASE VIDEO LINK STORAGE FIX (IMPORTANT)
+----------------------------------------------------
+
+Problem:
+Firebase is not storing video references properly.
+
+Fix:
+
+After recording completes, store in Firebase Realtime Database:
+
+{
+  userId: "",
+  timestamp: "",
+  locationLink: "",
+  frontVideoLocalPath: "indexeddb://front_timestamp",
+  backVideoLocalPath: "indexeddb://back_timestamp",
+  status: "emergency_triggered"
+}
+
+IMPORTANT RULES:
+- Firebase MUST store video reference links
+- Firebase MUST NOT store actual video files
+- Data must be written AFTER recording completes successfully
+
+----------------------------------------------------
+6. EVIDENCE PAGE FIX
+----------------------------------------------------
+
+Create/Update Evidence Page:
+
+- Fetch data from Firebase Realtime Database
+- Display all emergency logs
+- Each record must include:
+  - Timestamp
+  - Location (clickable Google Maps link)
+  - Front video (play + download)
+  - Back video (play + download)
+
+If direct play fails:
+- Provide download fallback
+
+----------------------------------------------------
+7. DATA FLOW SYNCHRONIZATION FIX
+----------------------------------------------------
+
+Ensure correct sequence:
+
+1. ALPHA detected
+2. Emergency triggered
+3. Location captured
+4. SMS sent via Twilio
+5. Video recording starts
+6. Recording ends
+7. Local storage saved
+8. Firebase updated with metadata + video references
+9. Evidence page updates automatically
+
+Use async/await to ensure proper ordering.
+
+----------------------------------------------------
+FINAL EXPECTED RESULT:
+----------------------------------------------------
+
+- Voice activation works automatically after protection
+- “alpha” detection triggers instant emergency
+- Twilio SMS is confirmed and logged
+- Videos are properly stored in local device storage
+- Firebase stores ONLY video reference links (not files)
+- Evidence page displays playable/downloadable videos
+- System runs continuously without manual restart

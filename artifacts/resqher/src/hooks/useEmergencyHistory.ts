@@ -8,6 +8,8 @@ export interface EmergencyRecord {
   timestamp: string;
   locationLink: string;
   status: string;
+  frontVideoLocalPath?: string | null;
+  backVideoLocalPath?: string | null;
   localVideoPath?: string | null;
 }
 
